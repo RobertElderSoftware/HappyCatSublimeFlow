@@ -19,10 +19,14 @@ class ProjectFlowStatusThread(threading.Thread):
 		self.edit = edit
 		self.current_file_name = current_file_name
 	def run(self):
+		p = None
 		if not self.current_file_name is None:
 			directory_to_check = str(os.path.dirname(self.current_file_name))
-			p = Popen(["cd " + directory_to_check + " && " + FLOW_EXECUTABLE + " status --json"], shell=True, stdout=PIPE, stdin=PIPE, stderr=STDOUT) 
-			output, stderr = p.communicate()
+			try:
+				p = Popen(["cd " + directory_to_check + " && " + FLOW_EXECUTABLE + " status --json"], shell=True, stdout=PIPE, stdin=PIPE, stderr=STDOUT) 
+				output, stderr = p.communicate()
+			except Exception as e:
+				print("Exception attempting to get project flow status: " + e);
 			self.cmd.view.run_command('finish_flow_status_request', {'directory_checked': directory_to_check, 'result': output.decode("utf-8")})
 		else:
 			self.cmd.view.run_command('finish_flow_status_request', {'directory_checked': 'none', 'result': "Did not run flow command, current file name was None so how would we know what directory to run 'flow status on?'."})
@@ -59,8 +63,12 @@ class CurrentFileFlowStatusThread(threading.Thread):
 	def run(self):
 		global highlightedRegions
 		content = self.cmd.view.substr(sublime.Region(0, self.cmd.view.size()))
-		p = Popen(["cd " + str(os.path.dirname(self.cmd.view.file_name())) + " && ~/flow/bin/flow check-contents --json --show-all-errors"], shell=True, stdout=PIPE, stdin=PIPE, stderr=STDOUT) 
-		output, stderr = p.communicate(input=content.encode('ascii'))
+		p = None
+		try:
+			p = Popen(["cd " + str(os.path.dirname(self.cmd.view.file_name())) + " && " + FLOW_EXECUTABLE + " check-contents --json --show-all-errors"], shell=True, stdout=PIPE, stdin=PIPE, stderr=STDOUT) 
+			output, stderr = p.communicate(input=content.encode('ascii'))
+		except Exception as e:
+			print("Exception attempting to get edited file status: " + e);
 		output = output.decode("utf-8")
 		try:
 			decoded_output = json.loads(output)
