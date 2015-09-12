@@ -7,10 +7,12 @@ import threading
 import time
 from subprocess import Popen, PIPE, STDOUT
 
+FLOW_STATUS_BAR_KEY="flow_status_key"
 FLOW_EXECUTABLE="~/flow/bin/flow"
 FLOW_STATUS_VIEW_NAME="Flow Status"
 highlightedRegions = {}
 flowStatusRegions = []
+flowRequestThreadCount = 0
 
 class ProjectFlowStatusThread(threading.Thread):
 	def __init__(self, cmd, edit, current_file_name):
@@ -54,6 +56,29 @@ def get_or_create_flow_status_window():
 
 def plugin_loaded():
 	get_or_create_flow_status_window().run_command('start_flow_status_request', {'current_file_name': sublime.active_window().active_view().file_name()})
+
+class StatusBarProcessingAnimationThread(threading.Thread):
+	#  Takes care of the animated text that appears in the status bar at
+	#  the bottom while flow is processing all errors/warnings.
+	def __init__(self, directory):
+		threading.Thread.__init__(self)
+		self.directory = directory
+	def run(self):
+		global flowRequestThreadCount
+		animationPhases = ["███ ", "██ █", "█ ██", " ███", "█ ██", "██ █", "███ "]
+		currentAnimationPhase = 0
+		#  TODO:  Don't test a global variable for finished state
+		while flowRequestThreadCount != 0:
+			currentAnimationPhase += 1
+			output = "Updating flow status: " + animationPhases[currentAnimationPhase % len(animationPhases)] + " for directory '" + self.directory + "'"
+			for window in sublime.windows():
+				for view in window.views():
+					view.set_status(FLOW_STATUS_BAR_KEY, output)
+			time.sleep(0.1)
+		#  Finished processing, clear processing status
+		for window in sublime.windows():
+			for view in window.views():
+				view.set_status(FLOW_STATUS_BAR_KEY, "Flow status updated: ████ for directory '" + self.directory + "'")
 
 class CurrentFileFlowStatusThread(threading.Thread):
 	def __init__(self, cmd, edit):
@@ -132,6 +157,7 @@ class Listener(sublime_plugin.EventListener):
 class FinishFlowStatusRequest(sublime_plugin.TextCommand):
 	def run(self, edit, directory_checked=None, result=''):
 		global flowStatusRegions
+		global flowRequestThreadCount
 		self.view.set_read_only(False)
 		self.view.erase(edit, sublime.Region(0, self.view.size()))
 		display_messages = []
@@ -165,12 +191,19 @@ class FinishFlowStatusRequest(sublime_plugin.TextCommand):
 				)
 				self.view.insert(edit, 0, all_output)
 		self.view.set_read_only(True)
+		flowRequestThreadCount -= 1
 
 class StartFlowStatusRequest(sublime_plugin.TextCommand):
 	def run(self, edit, current_file_name=None):
+		global flowRequestThreadCount
 		self.view.set_read_only(False)
 		self.view.insert(edit, 0, "Initiated communication with flow server at " + str(datetime.datetime.now()) + "\n")
 		self.view.set_read_only(True)
+		flowRequestThreadCount += 1
+		if flowRequestThreadCount == 1:
+			directory = str(os.path.dirname(current_file_name)) if not current_file_name is None else "None"
+			statusAnimation = StatusBarProcessingAnimationThread(directory)
+			statusAnimation.start()
 		th = ProjectFlowStatusThread(self, edit, current_file_name)
 		th.start()
 
