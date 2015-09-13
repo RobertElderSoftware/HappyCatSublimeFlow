@@ -155,9 +155,11 @@ class Listener(sublime_plugin.EventListener):
 			get_or_create_flow_status_window().run_command('start_flow_status_request', {'current_file_name': view.file_name()})
 
 def create_description_from_flow_error(error):
-	descr1 = str(error['message'][1]['descr']) if len(error['message']) > 1 else ''
-	descr2 = str(error['message'][2]['descr']) if len(error['message']) > 2 else ''
-	return descr1 + " " + descr2
+	display_strings = []
+	for item in error['message']:
+		if item['descr']:
+			display_strings.append(item['descr'])
+	return " ".join(display_strings)
 
 class FinishFlowStatusRequest(sublime_plugin.TextCommand):
 	def run(self, edit, directory_checked=None, result=''):
