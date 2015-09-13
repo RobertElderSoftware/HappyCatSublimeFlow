@@ -154,6 +154,11 @@ class Listener(sublime_plugin.EventListener):
 		if not view.file_name() is None:
 			get_or_create_flow_status_window().run_command('start_flow_status_request', {'current_file_name': view.file_name()})
 
+def create_description_from_flow_error(error):
+	descr1 = str(error['message'][1]['descr']) if len(error['message']) > 1 else ''
+	descr2 = str(error['message'][2]['descr']) if len(error['message']) > 2 else ''
+	return descr1 + " " + descr2
+
 class FinishFlowStatusRequest(sublime_plugin.TextCommand):
 	def run(self, edit, directory_checked=None, result=''):
 		global flowStatusRegions
@@ -175,21 +180,21 @@ class FinishFlowStatusRequest(sublime_plugin.TextCommand):
 				size_before = len(all_output);
 				if(decoded_output['errors']):
 					for error in decoded_output['errors']:
-						descr1 = str(error['message'][1]['descr']) if len(error['message']) > 1 else ''
-						descr2 = str(error['message'][2]['descr']) if len(error['message']) > 2 else ''
-						all_output += "Line " + str(error['message'][0]['line']) + " " + str(error['message'][0]['path']) + " " + descr1 + " " + descr2 + "\n"
+						all_output += "Line " + str(error['message'][0]['line']) + " " + str(error['message'][0]['path'])
+						#  Only underline the line number and file to imply a link
 						new_region = sublime.Region(size_before, len(all_output))
+						all_output += " " + create_description_from_flow_error(error) + "\n"
 						size_before = len(all_output) #  New size for next time
 						flowStatusRegions.append({'path': error['message'][0]['path'], 'line': error['message'][0]['line'], 'region': new_region})
 						all_regions.append(new_region)
 
-				self.view.add_regions("stuff", all_regions, "keyword", "cross",
+				self.view.insert(edit, 0, all_output)
+				self.view.add_regions("underlined_flow_status", all_regions, "keyword", "cross",
 					sublime.DRAW_EMPTY |
 					sublime.DRAW_NO_FILL |
 					sublime.DRAW_NO_OUTLINE |
 					sublime.DRAW_SOLID_UNDERLINE
 				)
-				self.view.insert(edit, 0, all_output)
 		self.view.set_read_only(True)
 		flowRequestThreadCount -= 1
 
@@ -209,7 +214,7 @@ class StartFlowStatusRequest(sublime_plugin.TextCommand):
 
 
 class ProcessDoubleClick(sublime_plugin.TextCommand):
-	def on_popup_menu_click(self, edit, event):
+	def on_popup_menu_click(self, edit):
 		pass
 	def run(self, edit, event):
 		global highlightedRegions
