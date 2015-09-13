@@ -237,12 +237,13 @@ class ProcessDoubleClick(sublime_plugin.TextCommand):
 					pass
 		else:
 			print("Got click " + str(event["x"]) + " " + str(event["y"]) + " " + str(pt))
-			print("There are " + str(len(self.view.settings().get('flow_data'))) + " regions to look for.")
-			for region in highlightedRegions[self.view.file_name()]:
-				if region['region'].a <= pt and region['region'].b >= pt:
-					print("Matched region: " + str(region['region']) + " pt was " + str(pt))
-					self.view.show_popup_menu(region['messages'], self.on_popup_menu_click)
-				else:
-					print("Not in region:" + str(region['region']) + " pt was " + str(pt))
+			if not self.view.file_name() is None:
+				print("There are " + str(len(self.view.settings().get('flow_data'))) + " regions to look for.")
+				for region in highlightedRegions[self.view.file_name()]:
+					if region['region'].a <= pt and region['region'].b >= pt:
+						print("Matched region: " + str(region['region']) + " pt was " + str(pt))
+						self.view.show_popup_menu(region['messages'], self.on_popup_menu_click)
+					else:
+						print("Not in region:" + str(region['region']) + " pt was " + str(pt))
 	def want_event(self):
 		return True #  This is what causes the third 'event' parameter to be passed to other methods in this class.
