@@ -8,8 +8,6 @@ import time
 from subprocess import Popen, PIPE, STDOUT
 
 FLOW_STATUS_BAR_KEY="flow_status_key"
-FLOW_EXECUTABLE="~/flow/bin/flow"
-FLOW_STATUS_VIEW_NAME="Flow Status"
 highlightedRegions = {}
 flowStatusRegions = []
 flowRequestThreadCount = 0
@@ -25,7 +23,7 @@ class ProjectFlowStatusThread(threading.Thread):
 		if not self.current_file_name is None:
 			directory_to_check = str(os.path.dirname(self.current_file_name))
 			try:
-				p = Popen(["cd " + directory_to_check + " && " + FLOW_EXECUTABLE + " status --json"], shell=True, stdout=PIPE, stdin=PIPE, stderr=STDOUT) 
+				p = Popen(["cd " + directory_to_check + " && " + sublime.load_settings('HappyCatSublimeFlow.sublime-settings').get("HappyCatSublimeFlow.FLOW_EXECUTABLE") + " status --json"], shell=True, stdout=PIPE, stdin=PIPE, stderr=STDOUT) 
 				output, stderr = p.communicate()
 			except Exception as e:
 				print("Exception attempting to get project flow status: " + e);
@@ -38,7 +36,7 @@ def get_or_create_flow_status_window():
 	#  or it will create one if none exists
 	for window in sublime.windows():
 		for view in window.views():
-			if view.name() == FLOW_STATUS_VIEW_NAME:
+			if view.name() == sublime.load_settings('HappyCatSublimeFlow.sublime-settings').get("HappyCatSublimeFlow.FLOW_STATUS_VIEW_NAME"):
 				view.set_scratch(True)
 				view.set_read_only(True)
 				return view
@@ -49,7 +47,7 @@ def get_or_create_flow_status_window():
 	#  Prevents being prompted when we close this view, and make it read only
 	new_view.set_scratch(True)
 	new_view.set_read_only(True)
-	new_view.set_name(FLOW_STATUS_VIEW_NAME)
+	new_view.set_name(sublime.load_settings('HappyCatSublimeFlow.sublime-settings').get("HappyCatSublimeFlow.FLOW_STATUS_VIEW_NAME"))
 	#  Restore active view
 	sublime.active_window().focus_view(currently_active_view)
 	return new_view
@@ -90,7 +88,7 @@ class CurrentFileFlowStatusThread(threading.Thread):
 		content = self.cmd.view.substr(sublime.Region(0, self.cmd.view.size()))
 		p = None
 		try:
-			p = Popen(["cd " + str(os.path.dirname(self.cmd.view.file_name())) + " && " + FLOW_EXECUTABLE + " check-contents --json --show-all-errors"], shell=True, stdout=PIPE, stdin=PIPE, stderr=STDOUT) 
+			p = Popen(["cd " + str(os.path.dirname(self.cmd.view.file_name())) + " && " + sublime.load_settings('HappyCatSublimeFlow.sublime-settings').get("HappyCatSublimeFlow.FLOW_EXECUTABLE") + " check-contents --json --show-all-errors"], shell=True, stdout=PIPE, stdin=PIPE, stderr=STDOUT) 
 			output, stderr = p.communicate(input=content.encode('ascii'))
 		except Exception as e:
 			print("Exception attempting to get edited file status: " + e);
@@ -222,7 +220,7 @@ class ProcessDoubleClick(sublime_plugin.TextCommand):
 		global highlightedRegions
 		global flowStatusRegions
 		pt = self.view.window_to_text((event["x"], event["y"]))
-		if self.view.name() == FLOW_STATUS_VIEW_NAME:
+		if self.view.name() == sublime.load_settings('HappyCatSublimeFlow.sublime-settings').get("HappyCatSublimeFlow.FLOW_STATUS_VIEW_NAME"):
 			for r in flowStatusRegions:
 				if r['region'].a <= pt and r['region'].b >= pt:
 					print("matched" + r['path'] + " " + str(r['line']))
