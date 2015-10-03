@@ -13,6 +13,7 @@ flowStatusRegions = []
 flowRequestThreadCount = 0
 
 class ProjectFlowStatusThread(threading.Thread):
+	#  Container class to keep track of our request to the flow server for status on the entire project
 	def __init__(self, cmd, edit, current_file_name):
 		threading.Thread.__init__(self)
 		self.cmd = cmd
@@ -73,12 +74,13 @@ class StatusBarProcessingAnimationThread(threading.Thread):
 				for view in window.views():
 					view.set_status(FLOW_STATUS_BAR_KEY, output)
 			time.sleep(0.1)
-		#  Finished processing, clear processing status
+		#  Finished processing, clear processing status (for all windows)
 		for window in sublime.windows():
 			for view in window.views():
 				view.set_status(FLOW_STATUS_BAR_KEY, "Flow status updated: ████ for directory '" + self.directory + "'")
 
 class CurrentFileFlowStatusThread(threading.Thread):
+	#  Takes care of getting the errors and highlighted regions for a single file
 	def __init__(self, cmd, edit):
 		threading.Thread.__init__(self)
 		self.cmd = cmd
@@ -97,7 +99,8 @@ class CurrentFileFlowStatusThread(threading.Thread):
 			decoded_output = json.loads(output)
 		except Exception as e:
 			print("Exception json decoding: " + str(e) + ".  Was attempting to decode '" + output + "'")
-		self.cmd.view.settings().set('flow_data', [])
+		#  Process the results of running flow status on the current file, and determine which regions to highlight
+		#  and what error messages to show.
 		messages_groups = []
 		highlightedRegions[self.cmd.view.file_name()] = []
 		if(decoded_output['errors']):
@@ -125,11 +128,13 @@ class CurrentFileFlowStatusThread(threading.Thread):
 		)
 
 class CheckFlowStatusOnView(sublime_plugin.TextCommand):
+	#  Start the thread to get flow status on a single file
 	def run(self, edit):
 		th = CurrentFileFlowStatusThread(self, edit)
 		th.start()
 
 class Listener(sublime_plugin.EventListener):
+	#  Handles user events that come from Sublime
 	def nothing(self,view):
 		pass
 	def on_activated(self, view):
@@ -153,6 +158,7 @@ class Listener(sublime_plugin.EventListener):
 			get_or_create_flow_status_window().run_command('start_flow_status_request', {'current_file_name': view.file_name()})
 
 def create_description_from_flow_error(error):
+	#  Create error messages from the decoded json object
 	display_strings = []
 	for item in error['message']:
 		if item['descr']:
@@ -160,6 +166,8 @@ def create_description_from_flow_error(error):
 	return " ".join(display_strings)
 
 class FinishFlowStatusRequest(sublime_plugin.TextCommand):
+	#  Build up the view of error information of all errors
+	#  in this project
 	def run(self, edit, directory_checked=None, result=''):
 		global flowStatusRegions
 		global flowRequestThreadCount
@@ -178,6 +186,7 @@ class FinishFlowStatusRequest(sublime_plugin.TextCommand):
 				all_regions = []
 				all_output = "Flow found the following errors when running flow status in '" + directory_checked + "'. This only considers changes written to disk.  Double-click on an error to navigate to it.\n"
 				size_before = len(all_output);
+				#   Decode Facebook flow's error information:
 				if(decoded_output['errors']):
 					for error in decoded_output['errors']:
 						all_output += "Line " + str(error['message'][0]['line']) + " " + str(error['message'][0]['path'])
@@ -189,6 +198,8 @@ class FinishFlowStatusRequest(sublime_plugin.TextCommand):
 						all_regions.append(new_region)
 
 				self.view.insert(edit, 0, all_output)
+				#  These are the clickable regions in the list of errors that will take us to
+				#  the location in the code where the error is.
 				self.view.add_regions("underlined_flow_status", all_regions, "keyword", "cross",
 					sublime.DRAW_EMPTY |
 					sublime.DRAW_NO_FILL |
@@ -199,6 +210,7 @@ class FinishFlowStatusRequest(sublime_plugin.TextCommand):
 		flowRequestThreadCount -= 1
 
 class StartFlowStatusRequest(sublime_plugin.TextCommand):
+	#  Used when running 'flow status' on your entire project
 	def run(self, edit, current_file_name=None):
 		global flowRequestThreadCount
 		self.view.set_read_only(False)
@@ -215,15 +227,22 @@ class StartFlowStatusRequest(sublime_plugin.TextCommand):
 
 class ProcessDoubleClick(sublime_plugin.TextCommand):
 	def on_popup_menu_click(self, edit):
+		#  This is where you could implement a specific handler that would navigate
+		#  to your function/variable declaration or other navigation information
+		#  relevant to your error's menu item.
 		pass
 	def run(self, edit, event):
+		#  Sublime doesn't have an 'onclick' event for clicking on text, but you
+		#  can remember the locations of the regions that you've underlined, and
+		#  then iterate through all of them and check if your click was on that
+		#  region.
 		global highlightedRegions
 		global flowStatusRegions
 		pt = self.view.window_to_text((event["x"], event["y"]))
 		if self.view.name() == sublime.load_settings('HappyCatSublimeFlow.sublime-settings').get("HappyCatSublimeFlow.FLOW_STATUS_VIEW_NAME"):
+			#  Double click to navigate to error message in 'Flow Status' window.
 			for r in flowStatusRegions:
 				if r['region'].a <= pt and r['region'].b >= pt:
-					print("matched" + r['path'] + " " + str(r['line']))
 					new_view = sublime.active_window().open_file(r['path'])
 					new_pt = new_view.text_point(r['line']-1, 0)
 					new_view.sel().clear()
@@ -231,17 +250,16 @@ class ProcessDoubleClick(sublime_plugin.TextCommand):
 					new_view.show_at_center(new_pt)
 					break
 				else:
-					#print("Not in region:" + str(r['region']) + " pt was " + str(pt))
 					pass
 		else:
-			print("Got click " + str(event["x"]) + " " + str(event["y"]) + " " + str(pt))
+			#  Double click to show error message details in code editor window
 			if not self.view.file_name() is None:
-				print("There are " + str(len(self.view.settings().get('flow_data'))) + " regions to look for.")
 				for region in highlightedRegions[self.view.file_name()]:
 					if region['region'].a <= pt and region['region'].b >= pt:
-						print("Matched region: " + str(region['region']) + " pt was " + str(pt))
 						self.view.show_popup_menu(region['messages'], self.on_popup_menu_click)
 					else:
-						print("Not in region:" + str(region['region']) + " pt was " + str(pt))
+						pass
 	def want_event(self):
-		return True #  This is what causes the third 'event' parameter to be passed to other methods in this class.
+		#  This is what causes the third 'event' parameter to be passed to other methods in this class.
+		#  Source:  sublime official API documentation.
+		return True
