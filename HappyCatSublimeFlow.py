@@ -98,12 +98,13 @@ class CurrentFileFlowStatusThread(threading.Thread):
 		try:
 			decoded_output = json.loads(output)
 		except Exception as e:
+			decoded_output = {}
 			print("Exception json decoding: " + str(e) + ".  Was attempting to decode '" + output + "'")
 		#  Process the results of running flow status on the current file, and determine which regions to highlight
 		#  and what error messages to show.
 		messages_groups = []
 		highlightedRegions[self.cmd.view.file_name()] = []
-		if(decoded_output['errors']):
+		if('errors' in decoded_output and decoded_output['errors']):
 			for error in decoded_output['errors']:
 				if(error['message']):
 					if len(error['message']):
