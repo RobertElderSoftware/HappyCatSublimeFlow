@@ -15,6 +15,18 @@ Feel free to correct me if I'm wrong on these conclusions:
 
 #  Features
 
+An error menu that pops up when you double-click on an underlined error:
+
+![Error Menu](one-error.png)
+
+A list of all errors in the project that shows in the 'Flow Status' window:
+
+![Error List](errors.png)
+
+Configure the location of the flow server executable:
+
+![Settings](settings.png)
+
 #  TODO
 
 These tasks were not completed since the original goals of the plugin don't seem to be achievable in a reasonable amount of time (or not at all, given the UI mechanisms that Sublime offers).
